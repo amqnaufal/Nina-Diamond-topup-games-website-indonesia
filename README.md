@@ -3,7 +3,7 @@
 
 ---
 
-## 🚀 Fitur Utama
+##  Fitur Utama
 
 * **Pencarian Cepat:** Fitur pencarian produk (*Cari Game atau Voucher*) di bagian *header* untuk mempermudah navigasi pengguna.
 * **Trending Section:** Menampilkan produk atau game yang paling populer saat ini secara dinamis untuk menarik perhatian pelanggan.
@@ -14,7 +14,7 @@
 
 ---
 
-## 🛠️ Arsitektur & Struktur Proyek
+##  Arsitektur & Struktur Proyek
 
 Proyek ini dibangun menggunakan **React** dan **TypeScript** dengan struktur komponen yang modular:
 
