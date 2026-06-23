@@ -1,0 +1,106 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Global Helpers
+    function isSignedIn() { return request.auth != null; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { 
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    // Application uses email/password or google SSO. If admin, their UID would be in the 'admins' collection.
+    // However, if we need a bootstrapped admin, we can add the user's email since we're in AI Studio.
+    function isAdmin() { 
+      return isSignedIn() && 
+        (
+          request.auth.token.email == "ninatechnology28@gmail.com" ||
+          exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        );
+    }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+
+    // Blueprint Validators
+    function isValidUser(data) {
+      return data.keys().hasAll(['fullName', 'email', 'createdAt', 'updatedAt']) &&
+        data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 100 &&
+        data.email is string && data.email.size() > 0 && data.email.size() <= 100 &&
+        data.createdAt == request.time &&
+        data.updatedAt == request.time &&
+        (!('whatsapp' in data) || (data.whatsapp is string && data.whatsapp.size() <= 20)) &&
+        (!('role' in data) || data.role == 'user');
+    }
+
+    function isValidUserUpdate(inc, ext) {
+      return inc.diff(ext).affectedKeys().hasOnly(['fullName', 'whatsapp', 'updatedAt']) &&
+        (!('fullName' in inc) || (inc.fullName is string && inc.fullName.size() > 0 && inc.fullName.size() <= 100)) &&
+        (!('whatsapp' in inc) || (inc.whatsapp is string && inc.whatsapp.size() <= 20)) &&
+        inc.updatedAt == request.time;
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['invoiceId', 'userId', 'gameName', 'gameAccountId', 'packageName', 'price', 'status', 'createdAt', 'updatedAt']) &&
+        data.invoiceId is string && data.invoiceId.size() > 0 && data.invoiceId.size() <= 128 && data.invoiceId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.userId is string && (data.userId == 'guest' || (isSignedIn() && data.userId == request.auth.uid)) &&
+        data.gameName is string && data.gameName.size() <= 100 &&
+        data.gameAccountId is string && data.gameAccountId.size() <= 100 &&
+        (!('gameServer' in data) || (data.gameServer is string && data.gameServer.size() <= 100)) &&
+        (!('paymentMethod' in data) || data.paymentMethod is string) &&
+        (!('quantity' in data) || data.quantity is number) &&
+        data.packageName is string && data.packageName.size() <= 100 &&
+        data.price is number &&
+        data.status == 'pending' &&
+        data.createdAt == request.time &&
+        data.updatedAt == request.time;
+    }
+
+    // 3. Collection Rules
+    match /users/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      
+      allow create: if isValidId(uid) && isOwner(uid) && 
+        isValidUser(incoming());
+
+      allow update: if isValidId(uid) && isOwner(uid) &&
+        isValidUserUpdate(incoming(), existing());
+    }
+
+    match /transactions/{transactionId} {
+      // Anyone can get a transaction to check invoice status
+      allow get: if isValidId(transactionId);
+      // Explicitly enforce that clients MUST query their own transactions.
+      allow list: if isSignedIn() && request.auth.uid != null;
+
+      // Make create accessible to everyone including guests
+      allow create: if isValidId(transactionId) &&
+        isValidTransaction(incoming());
+
+      // transactions can be cancelled or updated by admin. User cannot modify transactions.
+      allow update: if isValidId(transactionId) && isSignedIn() &&
+        (
+          isAdmin() ||
+          (
+            isOwner(existing().userId) && 
+            existing().status == 'pending' && // once not pending, locked.
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+            incoming().status == 'cancelled' &&
+            incoming().updatedAt == request.time
+          )
+        );
+
+      allow delete: if false; // immutable transactions
+    }
+    
+    // Admins path
+    match /admins/{uid} {
+      allow read: if isValidId(uid) && (isOwner(uid) || request.auth.token.email == "ninatechnology28@gmail.com");
+      allow write: if false; // only edited via console
+    }
+  }
+}
