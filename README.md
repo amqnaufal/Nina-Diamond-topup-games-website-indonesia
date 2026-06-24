@@ -16,6 +16,15 @@
 
 ---
 
+## 🛠️ Teknologi yang Digunakan
+
+Proyek ini dibangun menggunakan teknologi web modern untuk menjamin performa dan keamanan:
+
+* **Frontend:** [React](https://reactjs.org/)
+* **Bahasa Utama:** [TypeScript](https://www.typescriptlang.org/) (98.7%)
+* **Build Tool:** [Vite](https://vitejs.dev/)
+* **Backend & Database:** Firebase & Firestore (Berdasarkan konfigurasi `firebase-applet-config.json` dan `firestore.rules`)
+
 ##  Arsitektur & Struktur Proyek
 
 Proyek ini dibangun menggunakan **React** dan **TypeScript** dengan struktur komponen yang modular:
